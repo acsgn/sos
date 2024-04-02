@@ -30,6 +30,12 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
     short_desc = "Charmed PostgreSQL"
     plugin_name = "charmed_postgresql"
 
+    # No configuration other than username and password is given
+    # to the PostgreSQL Exporter. It binds to :9187 by default
+    @property
+    def postgresql_exporter_address(self) -> str:
+        return "127.0.0.1:9187"
+
     @property
     def patroni_address(self) -> str | None:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
@@ -69,85 +75,94 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
-        return patroni_config["postgresql"]["authentication"]["superuser"]["username"]
+        superuser = patroni_config["postgresql"]["authentication"]["superuser"]
+        return superuser["username"]
 
     @property
     def postgresql_password(self) -> str | None:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
-        return patroni_config["postgresql"]["authentication"]["superuser"]["password"]
+        superuser = patroni_config["postgresql"]["authentication"]["superuser"]
+        return superuser["password"]
 
     @property
     def default_psql_bin_args(self) -> str:
-        return f"-U {self.postgresql_username} -h {self.postgresql_host} -p {self.postgresql_port} -d postgres"
+        return (f"-U {self.postgresql_username} "
+                f"-h {self.postgresql_host} "
+                f"-p {self.postgresql_port} "
+                "-d postgres")
 
     def setup(self):
         # --- FILE EXCLUSIONS ---
 
         # Keys and certificates
-        self.add_forbidden_path(
-            [
-                f"{PATHS['PATRONI_CONF']}/*.pem",
-                f"{PATHS['PGBOUNCER_CONF']}/*.pem",
-            ]
-        )
+        self.add_forbidden_path([
+            f"{PATHS['PATRONI_CONF']}/*.pem",
+            f"{PATHS['PGBOUNCER_CONF']}/*.pem",
+        ])
 
         # --- FILE INCLUSIONS ---
 
-        self.add_copy_spec(
-            [
-                f"{PATHS['POSTGRESQL_CONF']}",
-                f"{PATHS['POSTGRESQL_LOGS']}",
-                f"{PATHS['PATRONI_CONF']}",
-                f"{PATHS['PATRONI_LOGS']}",
-                f"{PATHS['PGBACKREST_CONF']}",
-                f"{PATHS['PGBACKREST_LOGS']}",
-                f"{PATHS['PGBOUNCER_CONF']}",
-                f"{PATHS['PGBOUNCER_LOGS']}",
-            ]
-        )
+        self.add_copy_spec([
+            f"{PATHS['POSTGRESQL_CONF']}",
+            f"{PATHS['POSTGRESQL_LOGS']}",
+            f"{PATHS['PATRONI_CONF']}",
+            f"{PATHS['PATRONI_LOGS']}",
+            f"{PATHS['PGBACKREST_CONF']}",
+            f"{PATHS['PGBACKREST_LOGS']}",
+            f"{PATHS['PGBOUNCER_CONF']}",
+            f"{PATHS['PGBOUNCER_LOGS']}",
+        ])
 
         # --- SNAP LOGS ---
 
         # Initialization and bootstrap logs
         self.add_cmd_output(
-            f"snap logs charmed-postgresql.patroni -n all",
+            "snap logs charmed-postgresql.patroni -n all",
             suggest_filename="patroni-logs-snap",
         )
 
         # --- TOPOLOGY ---
 
         self.add_cmd_output(
-            f"charmed-postgresql.patroni {self.default_patronictl_bin_args} topology {self.patroni_cluster_name}",
+            (f"charmed-postgresql.patroni {self.default_patronictl_bin_args} "
+             f"topology {self.patroni_cluster_name}"),
             suggest_filename="patroni-topology",
         )
 
         # --- DCS CONFIGS ---
 
         self.add_cmd_output(
-            f"charmed-postgresql.patroni {self.default_patronictl_bin_args} show-config {self.patroni_cluster_name}",
+            (f"charmed-postgresql.patroni {self.default_patronictl_bin_args} "
+             f"show-config {self.patroni_cluster_name}"),
             suggest_filename="patroni-dcs-config",
         )
 
         # --- DATABASES ---
 
         self.add_cmd_output(
-            f"PGPASSWORD={self.postgresql_password} charmed-postgresql.psql {self.default_psql_bin_args} -c '\l+'",
+            (f"PGPASSWORD={self.postgresql_password} "
+             f"charmed-postgresql.psql {self.default_psql_bin_args} "
+             "-c '\l+'"),
             suggest_filename="postgresql-users",
         )
 
         # --- USERS ---
 
         self.add_cmd_output(
-            f"PGPASSWORD={self.postgresql_password} charmed-postgresql.psql {self.default_psql_bin_args} -c '\duS+'",
+            (f"PGPASSWORD={self.postgresql_password} "
+             f"charmed-postgresql.psql {self.default_psql_bin_args} "
+             "-c '\duS+'"),
             suggest_filename="postgresql-users",
         )
 
         # --- TABLES ---
 
         self.add_cmd_output(
-            f"PGPASSWORD={self.postgresql_password} charmed-postgresql.psql {self.default_psql_bin_args} -c '\dtS+'",
+            (f"PGPASSWORD={self.postgresql_password} "
+             f"charmed-postgresql.psql {self.default_psql_bin_args} "
+             "-c '\dtS+'"),
             suggest_filename="postgresql-tables",
         )
 
@@ -158,10 +173,8 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
             suggest_filename="metrics-patroni",
         )
 
-        # No configuration other than username and password is given
-        # to the PostgreSQL Exporter. It binds to :9187 by default
         self.add_cmd_output(
-            f"curl -vk 127.0.0.1:9187/metrics",
+            f"curl -vk {self.postgresql_exporter_address}/metrics",
             suggest_filename="metrics-postgresql",
         )
 
@@ -173,12 +186,12 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         self.do_path_regex_sub(
             f"{PATHS['PATRONI_CONF']}/*",
             r'(password: )"?.*"?',
-            r'\1*********',
+            r'\1"*********"',
         )
 
         # https://www.pgbouncer.org/config.html#authentication-file-format
         self.do_path_regex_sub(
             f"{PATHS['PGBOUNCER_CONF']}/userlist.txt",
-            r'(".*" ").*"',
-            r'\1*********"',
+            r'(".*" )".*"',
+            r'\1"*********"',
         )
