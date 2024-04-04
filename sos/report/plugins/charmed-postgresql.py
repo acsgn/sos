@@ -117,10 +117,13 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
 
         # --- SNAP LOGS ---
 
-        # Initialization and bootstrap logs
+        self.add_journal("snap.charmed-postgresql.*")
+
+        # --- SNAP INFO ---
+
         self.add_cmd_output(
-            "snap logs charmed-postgresql.patroni -n all",
-            suggest_filename="patroni-logs-snap",
+            "snap info charmed-postgresql",
+            suggest_filename="snap-info",
         )
 
         # --- TOPOLOGY ---
@@ -144,7 +147,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         self.add_cmd_output(
             (f"PGPASSWORD={self.postgresql_password} "
              f"charmed-postgresql.psql {self.default_psql_bin_args} "
-             "-c '\l+'"),
+             r"-c '\l+'"),
             suggest_filename="postgresql-users",
         )
 
@@ -153,7 +156,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         self.add_cmd_output(
             (f"PGPASSWORD={self.postgresql_password} "
              f"charmed-postgresql.psql {self.default_psql_bin_args} "
-             "-c '\duS+'"),
+             r"-c '\duS+'"),
             suggest_filename="postgresql-users",
         )
 
@@ -162,7 +165,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         self.add_cmd_output(
             (f"PGPASSWORD={self.postgresql_password} "
              f"charmed-postgresql.psql {self.default_psql_bin_args} "
-             "-c '\dtS+'"),
+             r"-c '\dtS+'"),
             suggest_filename="postgresql-tables",
         )
 
