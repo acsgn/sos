@@ -29,33 +29,21 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
 
     short_desc = "Charmed PostgreSQL"
     plugin_name = "charmed_postgresql"
-
-    # No configuration other than username and password is given
-    # to the PostgreSQL Exporter. It binds to :9187 by default
-    @property
-    def postgresql_exporter_address(self) -> str:
-        return "127.0.0.1:9187"
+    packages = ('charmed-postgresql',)
 
     @property
-    def patroni_address(self) -> str | None:
-        with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
-            patroni_config = yaml.safe_load(file)
-
-        return patroni_config["restapi"]["connect_address"]
-
-    @property
-    def patroni_cluster_name(self) -> str | None:
+    def patroni_cluster_name(self) -> str:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
         return patroni_config["scope"]
 
     @property
-    def default_patronictl_bin_args(self) -> str:
+    def patronictl_args(self) -> str:
         return f"--config-file {PATHS['PATRONI_CONF']}/patroni.yml"
 
     @property
-    def postgresql_host(self) -> str | None:
+    def postgresql_host(self) -> str:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
@@ -63,7 +51,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         return address.split(":")[0]
 
     @property
-    def postgresql_port(self) -> str | None:
+    def postgresql_port(self) -> str:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
@@ -71,7 +59,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         return address.split(":")[1]
 
     @property
-    def postgresql_username(self) -> str | None:
+    def postgresql_username(self) -> str:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
@@ -79,7 +67,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         return superuser["username"]
 
     @property
-    def postgresql_password(self) -> str | None:
+    def postgresql_password(self) -> str:
         with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
             patroni_config = yaml.safe_load(file)
 
@@ -87,11 +75,11 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         return superuser["password"]
 
     @property
-    def default_psql_bin_args(self) -> str:
+    def psql_args(self) -> str:
         return (f"-U {self.postgresql_username} "
                 f"-h {self.postgresql_host} "
                 f"-p {self.postgresql_port} "
-                "-d postgres")
+                r"-d postgres")
 
     def setup(self):
         # --- FILE EXCLUSIONS ---
@@ -129,7 +117,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- TOPOLOGY ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patronictl {self.default_patronictl_bin_args} "
+            (f"charmed-postgresql.patronictl {self.patronictl_args} "
              f"topology {self.patroni_cluster_name}"),
             suggest_filename="patroni-topology",
         )
@@ -137,7 +125,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- HISTORY ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patronictl {self.default_patronictl_bin_args} "
+            (f"charmed-postgresql.patronictl {self.patronictl_args} "
              f"history {self.patroni_cluster_name}"),
             suggest_filename="patroni-history",
         )
@@ -145,7 +133,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- DCS CONFIGS ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patronictl {self.default_patronictl_bin_args} "
+            (f"charmed-postgresql.patronictl {self.patronictl_args} "
              f"show-config {self.patroni_cluster_name}"),
             suggest_filename="patroni-dcs-config",
         )
@@ -154,7 +142,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
 
         self.add_cmd_output(
             (f"PGPASSWORD={self.postgresql_password} "
-             f"charmed-postgresql.psql {self.default_psql_bin_args} "
+             f"charmed-postgresql.psql {self.psql_args} "
              r"-c '\l+'"),
             suggest_filename="postgresql-users",
         )
@@ -163,7 +151,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
 
         self.add_cmd_output(
             (f"PGPASSWORD={self.postgresql_password} "
-             f"charmed-postgresql.psql {self.default_psql_bin_args} "
+             f"charmed-postgresql.psql {self.psql_args} "
              r"-c '\duS+'"),
             suggest_filename="postgresql-users",
         )
@@ -172,21 +160,9 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
 
         self.add_cmd_output(
             (f"PGPASSWORD={self.postgresql_password} "
-             f"charmed-postgresql.psql {self.default_psql_bin_args} "
+             f"charmed-postgresql.psql {self.psql_args} "
              r"-c '\dtS+'"),
             suggest_filename="postgresql-tables",
-        )
-
-        # --- METRICS ---
-
-        self.add_cmd_output(
-            f"curl -vk {self.patroni_address}/metrics",
-            suggest_filename="metrics-patroni",
-        )
-
-        self.add_cmd_output(
-            f"curl -vk {self.postgresql_exporter_address}/metrics",
-            suggest_filename="metrics-postgresql",
         )
 
     def postproc(self):
