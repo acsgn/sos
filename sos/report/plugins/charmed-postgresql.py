@@ -129,15 +129,23 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- TOPOLOGY ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patroni {self.default_patronictl_bin_args} "
+            (f"charmed-postgresql.patronictl {self.default_patronictl_bin_args} "
              f"topology {self.patroni_cluster_name}"),
             suggest_filename="patroni-topology",
+        )
+
+        # --- HISTORY ---
+
+        self.add_cmd_output(
+            (f"charmed-postgresql.patronictl {self.default_patronictl_bin_args} "
+             f"history {self.patroni_cluster_name}"),
+            suggest_filename="patroni-history",
         )
 
         # --- DCS CONFIGS ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patroni {self.default_patronictl_bin_args} "
+            (f"charmed-postgresql.patronictl {self.default_patronictl_bin_args} "
              f"show-config {self.patroni_cluster_name}"),
             suggest_filename="patroni-dcs-config",
         )
