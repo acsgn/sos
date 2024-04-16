@@ -6,6 +6,7 @@
 #
 # See the LICENSE file in the source distribution for further information.
 
+from typing import Optional
 import yaml
 
 from sos.report.plugins import Plugin, UbuntuPlugin
@@ -32,54 +33,67 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
     packages = ('charmed-postgresql',)
 
     @property
-    def patroni_cluster_name(self) -> str:
-        with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
+    def patroni_cluster_name(self) -> Optional[str]:
+        with open(f"{PATHS['PATRONI_CONF']}/patroni.yaml") as file:
             patroni_config = yaml.safe_load(file)
 
-        return patroni_config["scope"]
+        if patroni_config:
+            return patroni_config.get("scope")
 
     @property
     def patronictl_args(self) -> str:
-        return f"--config-file {PATHS['PATRONI_CONF']}/patroni.yml"
+        return f"--config-file {PATHS['PATRONI_CONF']}/patroni.yaml"
 
     @property
-    def postgresql_host(self) -> str:
-        with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
+    def postgresql_host(self) -> Optional[str]:
+        with open(f"{PATHS['PATRONI_CONF']}/patroni.yaml") as file:
             patroni_config = yaml.safe_load(file)
 
-        address = patroni_config["postgresql"]["connect_address"]
-        return address.split(":")[0]
+        if patroni_config:
+            postgresql = patroni_config.get("postgresql", {})
+            address = postgresql.get("connect_address")
+            if address:
+                return address.split(":")[0]
 
     @property
-    def postgresql_port(self) -> str:
-        with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
+    def postgresql_port(self) -> Optional[str]:
+        with open(f"{PATHS['PATRONI_CONF']}/patroni.yaml") as file:
             patroni_config = yaml.safe_load(file)
 
-        address = patroni_config["postgresql"]["connect_address"]
-        return address.split(":")[1]
+        if patroni_config:
+            postgresql = patroni_config.get("postgresql", {})
+            address = postgresql.get("connect_address")
+            if address:
+                return address.split(":")[1]
 
     @property
-    def postgresql_username(self) -> str:
-        with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
+    def postgresql_username(self) -> Optional[str]:
+        with open(f"{PATHS['PATRONI_CONF']}/patroni.yaml") as file:
             patroni_config = yaml.safe_load(file)
 
-        superuser = patroni_config["postgresql"]["authentication"]["superuser"]
-        return superuser["username"]
+        if patroni_config:
+            postgresql = patroni_config.get("postgresql", {})
+            authentication = postgresql.get("authentication", {})
+            superuser = authentication.get("superuser", {})
+            return superuser.get("username")
 
     @property
-    def postgresql_password(self) -> str:
-        with open(f"{PATHS['PATRONI_CONF']}/patroni.yml") as file:
+    def postgresql_password(self) -> Optional[str]:
+        with open(f"{PATHS['PATRONI_CONF']}/patroni.yaml") as file:
             patroni_config = yaml.safe_load(file)
 
-        superuser = patroni_config["postgresql"]["authentication"]["superuser"]
-        return superuser["password"]
+        if patroni_config:
+            postgresql = patroni_config.get("postgresql", {})
+            authentication = postgresql.get("authentication", {})
+            superuser = authentication.get("superuser", {})
+            return superuser.get("password")
 
     @property
     def psql_args(self) -> str:
         return (f"-U {self.postgresql_username} "
                 f"-h {self.postgresql_host} "
                 f"-p {self.postgresql_port} "
-                r"-d postgres")
+                r"-d postgres -P pager=off")
 
     def setup(self):
         # --- FILE EXCLUSIONS ---
@@ -93,7 +107,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- FILE INCLUSIONS ---
 
         self.add_copy_spec([
-            f"{PATHS['POSTGRESQL_CONF']}",
+            f"{PATHS['POSTGRESQL_CONF']}/*.conf*",
             f"{PATHS['POSTGRESQL_LOGS']}",
             f"{PATHS['PATRONI_CONF']}",
             f"{PATHS['PATRONI_LOGS']}",
@@ -176,9 +190,17 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
             r'\1"*********"',
         )
 
+        # https://pgbackrest.org/configuration.html#section-repository/option-repo-s3-key
+        # https://pgbackrest.org/configuration.html#section-repository/option-repo-s3-key-secret
+        self.do_path_regex_sub(
+            f"{PATHS['PGBACKREST_CONF']}/pgbackrest.conf",
+            r'(.*s3-key.*=).*',
+            r'\1*********',
+        )
+
         # https://www.pgbouncer.org/config.html#authentication-file-format
         self.do_path_regex_sub(
-            f"{PATHS['PGBOUNCER_CONF']}/userlist.txt",
+            f"{PATHS['PGBOUNCER_CONF']}/pgbouncer/userlist.txt",
             r'(".*" )".*"',
             r'\1"*********"',
         )
