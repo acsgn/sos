@@ -25,6 +25,10 @@ PATHS = {
     "PGBOUNCER_LOGS": SNAP_COMMON_PATH + "/var/log/pgbouncer",
 }
 
+RUN_AS_SNAP_DAEMON = "runuser -u snap_daemon --"
+PSQL = "charmed-postgresql.psql"
+PATRONICTL = "charmed-postgresql.patronictl"
+
 
 class CharmedPostgreSQL(Plugin, UbuntuPlugin):
 
@@ -109,7 +113,7 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         self.add_copy_spec([
             f"{PATHS['POSTGRESQL_CONF']}/*.conf*",
             f"{PATHS['POSTGRESQL_LOGS']}",
-            f"{PATHS['PATRONI_CONF']}",
+            f"{PATHS['PATRONI_CONF']}/*.y*ml",
             f"{PATHS['PATRONI_LOGS']}",
             f"{PATHS['PGBACKREST_CONF']}",
             f"{PATHS['PGBACKREST_LOGS']}",
@@ -131,7 +135,8 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- TOPOLOGY ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patronictl {self.patronictl_args} "
+            (f"{RUN_AS_SNAP_DAEMON} "
+             f"{PATRONICTL} {self.patronictl_args} "
              f"topology {self.patroni_cluster_name}"),
             suggest_filename="patroni-topology",
         )
@@ -139,7 +144,8 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- HISTORY ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patronictl {self.patronictl_args} "
+            (f"{RUN_AS_SNAP_DAEMON} "
+             f"{PATRONICTL} {self.patronictl_args} "
              f"history {self.patroni_cluster_name}"),
             suggest_filename="patroni-history",
         )
@@ -147,7 +153,8 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- DCS CONFIGS ---
 
         self.add_cmd_output(
-            (f"charmed-postgresql.patronictl {self.patronictl_args} "
+            (f"{RUN_AS_SNAP_DAEMON} "
+             f"{PATRONICTL} {self.patronictl_args} "
              f"show-config {self.patroni_cluster_name}"),
             suggest_filename="patroni-dcs-config",
         )
@@ -155,28 +162,31 @@ class CharmedPostgreSQL(Plugin, UbuntuPlugin):
         # --- DATABASES ---
 
         self.add_cmd_output(
-            (f"PGPASSWORD={self.postgresql_password} "
-             f"charmed-postgresql.psql {self.psql_args} "
+            (f"{RUN_AS_SNAP_DAEMON} "
+             f"{PSQL} {self.psql_args} "
              r"-c '\l+'"),
-            suggest_filename="postgresql-users",
+            suggest_filename="postgresql-databases",
+            env={"PGPASSWORD": self.postgresql_password},
         )
 
         # --- USERS ---
 
         self.add_cmd_output(
-            (f"PGPASSWORD={self.postgresql_password} "
-             f"charmed-postgresql.psql {self.psql_args} "
+            (f"{RUN_AS_SNAP_DAEMON} "
+             f"{PSQL} {self.psql_args} "
              r"-c '\duS+'"),
             suggest_filename="postgresql-users",
+            env={"PGPASSWORD": self.postgresql_password},
         )
 
         # --- TABLES ---
 
         self.add_cmd_output(
-            (f"PGPASSWORD={self.postgresql_password} "
-             f"charmed-postgresql.psql {self.psql_args} "
+            (f"{RUN_AS_SNAP_DAEMON} "
+             f"{PSQL} {self.psql_args} "
              r"-c '\dtS+'"),
             suggest_filename="postgresql-tables",
+            env={"PGPASSWORD": self.postgresql_password},
         )
 
     def postproc(self):
